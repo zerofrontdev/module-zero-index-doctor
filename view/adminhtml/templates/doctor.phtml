@@ -1,0 +1,59 @@
+<?php
+/**
+ * Copyright © 2026 Roman Pasichnyk
+ * SPDX-License-Identifier: OSL-3.0 OR AFL-3.0
+ *
+ * System > Tools > Index Doctor: what slows the indexers down or stops them (the worst first, each with its fix),
+ * then how long each index took to rebuild. Fixes run from the CLI: bin/magento zero:index:doctor --repair.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+/** @var \Zero\IndexDoctor\ViewModel\Doctor $doctor */
+$doctor = $block->getData('view_model');
+$classes = ['fail' => 'message-error', 'warn' => 'message-warning', 'info' => 'message-notice', 'ok' => 'message-success'];
+$times = $doctor->times();
+?>
+<p style="max-width: 820px;">
+    <?= $escaper->escapeHtml(__('What slows Magento\'s indexers down or stops them, the worst first, with the fix for each. The same list in a terminal: bin/magento zero:index:doctor; with --repair it releases reindexes that died and rebuilds the invalid indexes.')) ?>
+</p>
+<div class="zero-index-doctor" style="max-width: 980px;">
+    <?php foreach ($doctor->findings() as $finding): ?>
+        <div class="message <?= /* @noEscape */ $classes[$finding->status] ?? 'message-notice' ?>" data-doctor-status="<?= $escaper->escapeHtmlAttr($finding->status) ?>" style="margin: 0 0 8px;">
+            <strong><?= $escaper->escapeHtml($finding->title) ?>:</strong>
+            <?= $escaper->escapeHtml($finding->detail) ?>
+            <?php if ($finding->fix !== '' && $finding->status !== 'ok'): ?>
+                <div style="margin-top: 6px;"><?= $escaper->escapeHtml(__('Fix')) ?>: <code><?= $escaper->escapeHtml($finding->fix) ?></code></div>
+            <?php endif; ?>
+        </div>
+    <?php endforeach; ?>
+</div>
+<h2 style="margin-top: 30px;"><?= $escaper->escapeHtml(__('Reindex times')) ?></h2>
+<?php if (!$times): ?>
+    <p><?= $escaper->escapeHtml(__('No reindex recorded yet: each one is timed from now on, from the admin, the CLI and the cron.')) ?></p>
+<?php else: ?>
+    <table class="data-grid" style="max-width: 980px;" data-doctor-times>
+        <thead>
+            <tr>
+                <th class="data-grid-th"><?= $escaper->escapeHtml(__('Index')) ?></th>
+                <th class="data-grid-th"><?= $escaper->escapeHtml(__('Last full rebuild')) ?></th>
+                <th class="data-grid-th"><?= $escaper->escapeHtml(__('Usual (median)')) ?></th>
+                <th class="data-grid-th"><?= $escaper->escapeHtml(__('Full rebuilds')) ?></th>
+                <th class="data-grid-th"><?= $escaper->escapeHtml(__('Changelog runs over 1 s')) ?></th>
+                <th class="data-grid-th"><?= $escaper->escapeHtml(__('Last at (UTC)')) ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($times as $id => $row): ?>
+                <tr>
+                    <td><?= $escaper->escapeHtml($id) ?></td>
+                    <td><?= $row['last'] !== null ? $escaper->escapeHtml(number_format($row['last'], 1) . ' s') : '—' ?></td>
+                    <td><?= $row['median'] !== null ? $escaper->escapeHtml(number_format($row['median'], 1) . ' s') : '—' ?></td>
+                    <td><?= (int) $row['runs'] ?></td>
+                    <td><?= (int) $row['changes'] ?><?= $row['changes'] ? $escaper->escapeHtml(' (' . number_format($row['changes_seconds'], 1) . ' s)') : '' ?></td>
+                    <td><?= $escaper->escapeHtml((string) ($row['last_at'] ?? '—')) ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>

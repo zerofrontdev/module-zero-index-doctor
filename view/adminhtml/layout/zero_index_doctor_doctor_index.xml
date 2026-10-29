@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+    Copyright © 2026 Roman Pasichnyk
+    SPDX-License-Identifier: OSL-3.0 OR AFL-3.0
+
+    System > Tools > Index Doctor.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="content">
+            <block class="Magento\Backend\Block\Template" name="zero.index.doctor" template="Zero_IndexDoctor::doctor.phtml">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Zero\IndexDoctor\ViewModel\Doctor</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

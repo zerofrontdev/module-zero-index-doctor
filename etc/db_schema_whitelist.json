@@ -1,0 +1,18 @@
+{
+    "zero_index_doctor_run": {
+        "column": {
+            "run_id": true,
+            "indexer_id": true,
+            "kind": true,
+            "seconds": true,
+            "failed": true,
+            "started_at": true
+        },
+        "index": {
+            "ZERO_INDEX_DOCTOR_RUN_INDEXER_ID_KIND_STARTED_AT": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        }
+    }
+}

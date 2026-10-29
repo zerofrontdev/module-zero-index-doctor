@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!--
+    Copyright © 2026 Roman Pasichnyk
+    SPDX-License-Identifier: OSL-3.0 OR AFL-3.0
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="zero_index_doctor_run" resource="default" engine="innodb" comment="Zero Index Doctor: how long each reindex took">
+        <column xsi:type="int" name="run_id" unsigned="true" nullable="false" identity="true"/>
+        <column xsi:type="varchar" name="indexer_id" nullable="false" length="128"/>
+        <column xsi:type="varchar" name="kind" nullable="false" length="8" default="full" comment="full: the whole index; changes: the rows saved since the last run"/>
+        <column xsi:type="decimal" name="seconds" scale="2" precision="10" unsigned="true" nullable="false" default="0"/>
+        <column xsi:type="smallint" name="failed" unsigned="true" nullable="false" default="0"/>
+        <column xsi:type="timestamp" name="started_at" nullable="false" default="CURRENT_TIMESTAMP"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="run_id"/>
+        </constraint>
+        <index referenceId="ZERO_INDEX_DOCTOR_RUN_INDEXER_KIND_STARTED" indexType="btree">
+            <column name="indexer_id"/>
+            <column name="kind"/>
+            <column name="started_at"/>
+        </index>
+    </table>
+</schema>

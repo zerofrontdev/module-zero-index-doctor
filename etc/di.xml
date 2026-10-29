@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!--
+    Copyright © 2026 Roman Pasichnyk
+    SPDX-License-Identifier: OSL-3.0 OR AFL-3.0
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Zero\IndexDoctor\Model\Doctor">
+        <arguments>
+            <argument name="checks" xsi:type="array">
+                <item name="database" xsi:type="object">Zero\IndexDoctor\Model\Check\DatabaseCheck</item>
+                <item name="indexers" xsi:type="object">Zero\IndexDoctor\Model\Check\IndexerCheck</item>
+                <item name="cron" xsi:type="object">Zero\IndexDoctor\Model\Check\CronCheck</item>
+                <item name="history" xsi:type="object">Zero\IndexDoctor\Model\Check\HistoryCheck</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- Every reindex is timed, from the admin, the CLI and the cron. On the indexer itself, not its interface: the
+         dependency decorator wrapping it implements the interface too, and each run was recorded twice. -->
+    <type name="Magento\Indexer\Model\Indexer">
+        <plugin name="zero_index_doctor_record" type="Zero\IndexDoctor\Plugin\RecordReindex"/>
+    </type>
+    <type name="Magento\Framework\Mview\ViewInterface">
+        <plugin name="zero_index_doctor_record" type="Zero\IndexDoctor\Plugin\RecordReindex"/>
+    </type>
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="zero_index_doctor" xsi:type="object">Zero\IndexDoctor\Console\Command\DoctorCommand</item>
+            </argument>
+        </arguments>
+    </type>
+</config>
