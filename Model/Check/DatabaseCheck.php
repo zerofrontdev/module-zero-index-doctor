@@ -66,7 +66,8 @@ class DatabaseCheck implements CheckInterface
             );
         }
 
-        return new Finding(Finding::OK, $title, ($mariadb ? 'MariaDB ' : 'MySQL ') . $version);
+        // "11.8.9-MariaDB" reads "MariaDB 11.8.9".
+        return new Finding(Finding::OK, $title, ($mariadb ? 'MariaDB ' : 'MySQL ') . preg_replace('/-MariaDB.*$/i', '', $version));
     }
 
     private function optimizerFinding(int $major): Finding

@@ -9,6 +9,7 @@ index in **3.5 hours**. With two settings changed it took **12 seconds**.
 bin/magento zero:index:doctor            # the findings, the worst first, each with its fix
 bin/magento zero:index:doctor --json     # the same, for a monitor
 bin/magento zero:index:doctor --repair   # release reindexes that died, rebuild the invalid indexes
+bin/magento zero:index:doctor --repair --force   # also release a "working" index when indexer/use_application_lock is off (check nothing runs first)
 ```
 
 The same list is in the admin under **System > Tools > Index Doctor** (ACL
@@ -50,6 +51,10 @@ Part of [`zerofront/zero`](https://zerofront.dev), which installs the Zero theme
 - **The catalogue indexes on "Update on Save"** with a large catalogue.
 - **Changes waiting in the changelogs** of the scheduled indexes.
 - **The cron.** Did it run the indexer jobs in the last 15 minutes?
+- **Catalog price rules on configurable products.** A configurable product in
+  `catalogrule_product` means a rule reindex ran without Magento's
+  configurable plugins (they are declared for the admin and cron areas only),
+  so the variants lost the discount. Fix: reindex `catalogrule_rule`.
 - **Adobe Commerce Services data exporters,** reindexed for nothing when the
   services are not used.
 - **Parallel reindexing** (`MAGE_INDEXER_THREADS_COUNT`), and the price
@@ -75,16 +80,33 @@ and dropped.
 - **It does:**
   - mark as invalid an index that has been "working" for over two hours and
     holds no lock (as `indexer:reset` would);
-  - rebuild every invalid index in Magento's order, dependencies first.
+  - rebuild every invalid index in Magento's order, dependencies first. One
+    that fails is reported ("Failed X: …") and the others are still
+    rebuilt; the exit code is then 1;
+  - set the adminhtml area (config scope), like `indexer:reindex`. Magento declares the
+    plugins that give a configurable's catalog rule discount to its variants
+    for the admin and cron areas only, so a rule index rebuilt in the global
+    area would hold only the configurable parents. If another area is set
+    already, it says so and tells you to reindex `catalogrule_rule` after.
+- **Without `indexer/use_application_lock`** nothing tells a reindex that
+  died from one still running (Magento writes `updated` once, when it
+  starts). Such an index is reported as a warning ("possibly stuck") and
+  kept, never released by `--repair` alone. Once you have checked that no
+  `indexer:reindex` is running, `--repair --force` releases it. Better:
+  turn the lock on. `--force` without `--repair` is refused.
 - **It doesn't:** change a setting. The database's settings and `env.php`
   are the operator's call; the findings say what to change.
 
 ## Tests
 
-Unit tests (`Test/Unit`) cover the database rules and the slowdown rule. The
+Unit tests (`Test/Unit`) cover the database rules and the slowdown rule.
+A full reindex Magento skips (the index is already "working") is not
+recorded as a run. The
 e2e test `dev/tests/zero-e2e/tests/index-doctor-admin.spec.ts` (project
 `index-doctor-admin`) checks the admin page: the findings come worst first,
 each problem has its fix, and the times table is there.
+
+What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

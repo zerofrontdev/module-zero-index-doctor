@@ -49,6 +49,10 @@ class CronCheck implements CheckInterface
             )];
         }
 
-        return [new Finding(Finding::OK, $title, (string) __('Indexer jobs ran %1 minutes ago.', max(0, (int) round($age / 60))))];
+        $minutes = max(0, (int) round($age / 60));
+
+        return [new Finding(Finding::OK, $title, $minutes <= 1
+            ? (string) __('Indexer jobs ran within the last minute.')
+            : (string) __('Indexer jobs ran %1 minutes ago.', $minutes))];
     }
 }

@@ -10,13 +10,15 @@ namespace Zero\IndexDoctor\Plugin;
 
 use Magento\Framework\Indexer\IndexerInterface;
 use Magento\Framework\Mview\ViewInterface;
+use Magento\Indexer\Model\WorkingStateProvider;
 use Psr\Log\LoggerInterface;
 use Zero\IndexDoctor\Model\History;
 
 /**
  * Times every full reindex (IndexerInterface::reindexAll, from the admin, the CLI or the cron) and the changelog runs
  * that took a second or more (ViewInterface::update runs every minute, mostly with nothing to do). Recording never
- * gets in the reindex's way: a failure to write is logged and forgotten.
+ * gets in the reindex's way: a failure to write is logged and forgotten. A full reindex of an index already "working"
+ * is skipped by Magento (Indexer::reindexAll) and is not recorded as a 0 s run.
  */
 class RecordReindex
 {
@@ -24,13 +26,19 @@ class RecordReindex
 
     public function __construct(
         private readonly History $history,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly WorkingStateProvider $workingState
     ) {
     }
 
     public function aroundReindexAll(IndexerInterface $subject, callable $proceed): mixed
     {
-        return $this->timed((string) $subject->getId(), 'full', 0.0, $proceed);
+        $id = (string) $subject->getId();
+        if ($this->workingState->isWorking($id)) {
+            return $proceed();
+        }
+
+        return $this->timed($id, 'full', 0.0, $proceed);
     }
 
     public function aroundUpdate(ViewInterface $subject, callable $proceed): mixed

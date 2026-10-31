@@ -10,6 +10,7 @@
                 <item name="database" xsi:type="object">Zero\IndexDoctor\Model\Check\DatabaseCheck</item>
                 <item name="indexers" xsi:type="object">Zero\IndexDoctor\Model\Check\IndexerCheck</item>
                 <item name="cron" xsi:type="object">Zero\IndexDoctor\Model\Check\CronCheck</item>
+                <item name="catalog_rule" xsi:type="object">Zero\IndexDoctor\Model\Check\CatalogRuleCheck</item>
                 <item name="history" xsi:type="object">Zero\IndexDoctor\Model\Check\HistoryCheck</item>
             </argument>
         </arguments>

@@ -89,11 +89,12 @@ class IndexerCheck implements CheckInterface
     }
 
     /**
-     * Read from the table: with the application lock on, Magento itself reports such an index as invalid.
+     * Read from the table: with the application lock on, Magento itself reports such an index as invalid. Without it
+     * "updated" is written once, when a reindex starts, so a long live reindex and a dead one look the same: a
+     * warning to check, never a failure (owner decision D16).
      */
     private function stuck(): Finding
     {
-        $title = (string) __('Reindexes stuck "working"');
         $connection = $this->resource->getConnection();
         $rows = $connection->fetchPairs(
             $connection->select()
@@ -101,17 +102,26 @@ class IndexerCheck implements CheckInterface
                 ->where('status = ?', 'working')
                 ->where('updated < ?', gmdate('Y-m-d H:i:s', time() - self::STUCK_SECONDS))
         );
+        $locking = (bool) $this->deploymentConfig->get('indexer/use_application_lock');
         // With the application lock, a reindex still running holds Magento's lock ("INDEXER<id>"): not stuck.
-        if ($this->deploymentConfig->get('indexer/use_application_lock')) {
+        if ($locking) {
             $rows = array_filter($rows, fn ($updated, $id) => !$this->locks->isLocked('INDEXER' . $id), ARRAY_FILTER_USE_BOTH);
         }
         if (!$rows) {
-            return new Finding(Finding::OK, $title, (string) __('None.'));
+            return new Finding(Finding::OK, (string) __('Reindexes stuck "working"'), (string) __('None.'));
+        }
+        if (!$locking) {
+            return new Finding(
+                Finding::WARN,
+                (string) __('Reindexes possibly stuck "working"'),
+                (string) __('%1 "working" for over two hours: %2. A reindex that died leaves this, and the cron then skips the index; a reindex still running looks the same while indexer/use_application_lock is off.', count($rows), implode(', ', array_keys($rows))),
+                (string) __('Check that no indexer:reindex is running, then bin/magento zero:index:doctor --repair --force; better, turn on indexer/use_application_lock.')
+            );
         }
 
         return new Finding(
             Finding::FAIL,
-            $title,
+            (string) __('Reindexes stuck "working"'),
             (string) __('%1 "working" for over two hours: %2. A reindex that died leaves this, and the cron then skips the index: it never rebuilds again.', count($rows), implode(', ', array_keys($rows))),
             (string) __('If no reindex is running: bin/magento zero:index:doctor --repair (or indexer:reset, then indexer:reindex).')
         );

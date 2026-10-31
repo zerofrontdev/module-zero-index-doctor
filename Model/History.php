@@ -37,38 +37,71 @@ class History
 
     /**
      * Per indexer: its last full rebuild, the median of the ones before it, how many there were, its changelog runs.
+     * Bounded: counts and sums come from the database, and only the last few full rebuilds of each indexer are read.
      *
      * @return array<string, array{last: float|null, last_at: string|null, median: float|null, runs: int, changes: int, changes_seconds: float}>
      */
     public function summary(): array
     {
         $connection = $this->resource->getConnection();
-        $rows = $connection->fetchAll(
-            $connection->select()->from($this->table(), ['indexer_id', 'kind', 'seconds', 'started_at'])
-                ->where('failed = 0')->order(['indexer_id', 'started_at DESC'])
+        $fullCounts = $connection->fetchPairs(
+            $connection->select()->from($this->table(), ['indexer_id', 'runs' => new \Zend_Db_Expr('COUNT(*)')])
+                ->where('failed = 0')->where('kind = ?', 'full')->group('indexer_id')
         );
-        $out = [];
-        foreach ($rows as $row) {
-            $id = (string) $row['indexer_id'];
-            $out[$id] ??= ['full' => [], 'last_at' => null, 'changes' => 0, 'changes_seconds' => 0.0];
-            if ($row['kind'] === 'full') {
-                $out[$id]['full'][] = (float) $row['seconds'];
-                $out[$id]['last_at'] ??= (string) $row['started_at'];
-            } else {
-                $out[$id]['changes']++;
-                $out[$id]['changes_seconds'] += (float) $row['seconds'];
+        $recentFull = [];
+        if ($fullCounts) {
+            // One query: each indexer's newest rows, through its (indexer_id, kind, started_at) index.
+            $parts = [];
+            foreach (array_keys($fullCounts) as $id) {
+                $parts[] = '(' . $connection->select()->from($this->table(), ['indexer_id', 'seconds', 'started_at'])
+                    ->where('indexer_id = ?', (string) $id)->where('kind = ?', 'full')->where('failed = 0')
+                    ->order(['started_at DESC', 'run_id DESC'])->limit(self::BASELINE + 1) . ')';
             }
+            $recentFull = $connection->fetchAll(implode(' UNION ALL ', $parts));
+        }
+        $changes = $connection->fetchAll(
+            $connection->select()->from($this->table(), [
+                'indexer_id',
+                'changes' => new \Zend_Db_Expr('COUNT(*)'),
+                'changes_seconds' => new \Zend_Db_Expr('SUM(seconds)'),
+            ])->where('failed = 0')->where('kind <> ?', 'full')->group('indexer_id')
+        );
+
+        return self::assemble($fullCounts, $recentFull, $changes);
+    }
+
+    /**
+     * The summary from what the three queries read.
+     *
+     * @param array<string, int|string> $fullCounts indexer id => its full rebuilds
+     * @param array<int, array{indexer_id: string, seconds: float|string, started_at: string}> $recentFull the last
+     *        full rebuilds of each indexer, newest first within an indexer
+     * @param array<int, array{indexer_id: string, changes: int|string, changes_seconds: float|string}> $changes
+     * @return array<string, array{last: float|null, last_at: string|null, median: float|null, runs: int, changes: int, changes_seconds: float}>
+     */
+    public static function assemble(array $fullCounts, array $recentFull, array $changes): array
+    {
+        $full = [];
+        $lastAt = [];
+        foreach ($recentFull as $row) {
+            $id = (string) $row['indexer_id'];
+            $full[$id][] = (float) $row['seconds'];
+            $lastAt[$id] ??= (string) $row['started_at'];
+        }
+        $changed = [];
+        foreach ($changes as $row) {
+            $changed[(string) $row['indexer_id']] = [(int) $row['changes'], (float) $row['changes_seconds']];
         }
         $summary = [];
-        foreach ($out as $id => $data) {
-            $full = $data['full'];
+        foreach (array_unique(array_merge(array_map('strval', array_keys($fullCounts)), array_keys($changed))) as $id) {
+            $times = $full[$id] ?? [];
             $summary[$id] = [
-                'last' => $full[0] ?? null,
-                'last_at' => $data['last_at'],
-                'median' => self::median(array_slice($full, 1, self::BASELINE)),
-                'runs' => count($full),
-                'changes' => $data['changes'],
-                'changes_seconds' => round($data['changes_seconds'], 2),
+                'last' => $times[0] ?? null,
+                'last_at' => $lastAt[$id] ?? null,
+                'median' => self::median(array_slice($times, 1, self::BASELINE)),
+                'runs' => (int) ($fullCounts[$id] ?? 0),
+                'changes' => $changed[$id][0] ?? 0,
+                'changes_seconds' => round($changed[$id][1] ?? 0.0, 2),
             ];
         }
         ksort($summary);
